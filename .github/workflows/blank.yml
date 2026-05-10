@@ -40,7 +40,7 @@ jobs:
           sts = boto3.client("sts")
 
           response = sts.assume_role_with_web_identity(
-              RoleArn="arn:aws:iam::905418439010:role/WebIdentityRole",
+              RoleArn="arn:aws:iam::905418439010:role/CheckSaml",
               RoleSessionName="manual-session",
               WebIdentityToken=token
           )
