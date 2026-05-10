@@ -1,4 +1,4 @@
-name: Manual OIDC to AWS STS
+name: Manual AssumeRoleWithWebIdentity
 
 on:
   push:
@@ -8,21 +8,46 @@ permissions:
   contents: read
 
 jobs:
-  test-oidc:
+  manual:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Get GitHub OIDC token
-        id: token
+      - name: Install dependencies
+        run: pip install boto3 requests
+
+      - name: Manually call STS
         run: |
-          TOKEN=$(curl -s \
-            -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
-            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.amazonaws.com" \
-            | jq -r '.value')
+          python3 - <<EOF
+          import os
+          import boto3
+          import requests
 
-          echo "TOKEN=$TOKEN" >> $GITHUB_ENV
+          # 1. Get GitHub OIDC token
+          token_url = os.environ["ACTIONS_ID_TOKEN_REQUEST_URL"]
+          req_token = os.environ["ACTIONS_ID_TOKEN_REQUEST_TOKEN"]
 
-      - name: Print token (DEBUG ONLY - do not use in production)
-        run: |
-          echo "$TOKEN"
+          resp = requests.get(
+              f"{token_url}&audience=sts.amazonaws.com",
+              headers={"Authorization": f"bearer {req_token}"}
+          )
 
+          token = resp.json()["value"]
+
+          # (optional debug)
+          print("JWT received")
+
+          # 2. Call AWS STS manually
+          sts = boto3.client("sts")
+
+          response = sts.assume_role_with_web_identity(
+              RoleArn="arn:aws:iam::905418439010:role/WebIdentityRole",
+              RoleSessionName="manual-session",
+              WebIdentityToken=token
+          )
+
+          creds = response["Credentials"]
+
+          print("AccessKeyId:", creds["AccessKeyId"])
+          print("SecretAccessKey:", creds["SecretAccessKey"])
+          print("SessionToken:", creds["SessionToken"])
+          EOF
